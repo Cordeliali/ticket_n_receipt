@@ -1,19 +1,39 @@
 #!/usr/bin/env python3
 import csv
 import glob
-import os
 import re
 import math
 from collections import OrderedDict
 
+TICKET_ITEMS_TO_SKIP = {
+    "[Ticket] 3/8 KP! 3rd Oneman Live",
+    "[Ticket] 2/7 Valentine Pop-Up Live",
+}
 
-TICKET_ITEM_TO_SKIP = "[Ticket] 3/8 KP! 3rd Oneman Live"
 PAGE_WIDTH = 612.0   # US Letter width in points
 PAGE_HEIGHT = 792.0  # US Letter height in points
-COLS = 2
-ROWS = 4
+COLS = 3
+ROWS = 5
 CELL_WIDTH = PAGE_WIDTH / COLS
 CELL_HEIGHT = PAGE_HEIGHT / ROWS
+
+def normalize_item_name(name):
+    n = (name or "").strip()
+    if n == "Cheki Tickets [KP! 3rd Live 3/8]":
+        return "Cheki Tickets 3rd"
+    if "Pixel Figures Acrylic Keychains" in n:
+        return "Pixel Keychains"
+    if "Hoodie" in n:
+        return "Hoodie"
+    if "Tote Bag" in n:
+        return "Tote Bag"
+    if "Kuri Graduation Merch Set" in n:
+        return "Kuri Grad Set"
+    if "Buzz Graduation Merch Set" in n:
+        return "Buzz Grad Set"
+    if "Buzzly Graduation" in n:
+        return "Buzz Grad Set"
+    return n
 
 
 def pdf_escape(text):
@@ -137,7 +157,9 @@ def load_receipts():
             reader = csv.DictReader(f)
             for row in reader:
                 item_name = (row.get("Item Name") or "").strip()
-                if item_name == TICKET_ITEM_TO_SKIP:
+                if item_name in TICKET_ITEMS_TO_SKIP:
+                    continue
+                if "valentine" in item_name.lower():
                     continue
 
                 email = (row.get("Recipient Email") or "").strip().lower()
@@ -184,12 +206,7 @@ def load_receipts():
 
 def receipt_lines(receipt):
     lines = []
-    current_order = None
     for item in receipt["items"]:
-        if item["order"] != current_order:
-            current_order = item["order"]
-            lines.append(f"Order: {current_order}")
-
         item_name = normalize_item_name(item["item_name"])
         variation = item["variation"].strip()
         if variation.lower() == "regular":
@@ -201,20 +218,6 @@ def receipt_lines(receipt):
             lines.append(f"- {item['qty']} x {item_name}")
     return lines
 
-
-def normalize_item_name(name):
-    n = (name or "").strip()
-    if n == "Cheki Tickets [KP! 3rd Live 3/8]":
-        return "Cheki Tickets 3rd"
-    if "Hoodie" in n:
-        return "Hoodie"
-    if "Tote Bag" in n:
-        return "Tote Bag"
-    if "Kuri Graduation Merch Set" in n:
-        return "Kuri Grad Set"
-    if "Buzz Graduation Merch Set" in n:
-        return "Buzz Grad Set"
-    return n
 
 
 def render_pdf(receipts, output_path):
